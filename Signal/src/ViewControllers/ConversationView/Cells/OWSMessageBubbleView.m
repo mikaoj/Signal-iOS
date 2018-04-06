@@ -251,9 +251,8 @@ NS_ASSUME_NONNULL_BEGIN
     if (self.isQuotedReply) {
         OWSAssert(!lastSubview);
 
-        TSMessage *message = (TSMessage *)self.viewItem.interaction;
         OWSQuotedMessageView *quotedMessageView = [OWSQuotedMessageView
-            quotedMessageViewForConversation:message.quotedMessage
+            quotedMessageViewForConversation:self.viewItem.quotedReply
                        displayableQuotedText:(self.viewItem.hasQuotedText ? self.viewItem.displayableQuotedText : nil)];
         self.quotedMessageView = quotedMessageView;
         [quotedMessageView createContents];
@@ -906,9 +905,8 @@ NS_ASSUME_NONNULL_BEGIN
         return CGSizeZero;
     }
 
-    TSMessage *message = (TSMessage *)self.viewItem.interaction;
     OWSQuotedMessageView *quotedMessageView = [OWSQuotedMessageView
-        quotedMessageViewForConversation:message.quotedMessage
+        quotedMessageViewForConversation:self.viewItem.quotedReply
                    displayableQuotedText:(self.hasQuotedText ? self.viewItem.displayableQuotedText : nil)];
     const int maxMessageWidth = [self maxMessageWidthForContentWidth:contentWidth];
     CGSize result = [quotedMessageView sizeForMaxWidth:maxMessageWidth - kBubbleThornSideInset];
