@@ -373,7 +373,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (UIFont *)quotedAuthorFont
 {
-    return [UIFont ows_mediumFontWithSize:11.f];
+    return UIFont.ows_dynamicTypeCaption1Font.ows_medium;
 }
 
 - (UIColor *)quotedAuthorColor
@@ -388,8 +388,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (UIFont *)quotedTextFont
 {
-    // Honor dynamic type in the text.
-    // TODO: ?
     return [UIFont ows_dynamicTypeBodyFont];
 }
 
@@ -400,11 +398,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (UIFont *)fileTypeFont
 {
-    UIFontDescriptor *fontD =
-        [self.quotedTextFont.fontDescriptor fontDescriptorWithSymbolicTraits:UIFontDescriptorTraitItalic];
-    UIFont *font = [UIFont fontWithDescriptor:fontD size:0];
-    OWSAssert(font);
-    return font ?: self.quotedTextFont;
+    return self.quotedTextFont.ows_italic;
 }
 
 - (UIColor *)filenameTextColor
