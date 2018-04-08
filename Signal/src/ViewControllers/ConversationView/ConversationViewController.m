@@ -122,7 +122,6 @@ typedef enum : NSUInteger {
     ContactsViewHelperDelegate,
     ContactEditingDelegate,
     CNContactViewControllerDelegate,
-    DisappearingTimerConfigurationViewDelegate,
     OWSConversationSettingsViewDelegate,
     ConversationViewLayoutDelegate,
     ConversationViewCellDelegate,
@@ -1131,9 +1130,7 @@ typedef enum : NSUInteger {
 
     self.navigationBarTitleView = [ConversationHeaderView new];
     self.navigationBarTitleView.userInteractionEnabled = YES;
-    [self.navigationBarTitleView
-        addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self
-                                                                     action:@selector(navigationTitleTapped:)]];
+    
 #ifdef USE_DEBUG_UI
     [self.navigationBarTitleView addGestureRecognizer:[[UILongPressGestureRecognizer alloc]
                                                           initWithTarget:self
@@ -1195,33 +1192,11 @@ typedef enum : NSUInteger {
 
 - (void)updateBarButtonItems
 {
-    // We want to leave space for the "back" button, the "timer" button, and the "call"
-    // button, and all of the whitespace around these views.  There
-    // isn't a convenient way to calculate these in a navigation bar, so we just leave
-    // a constant amount of space which will be safe unless Apple makes radical changes
-    // to the appearance of the navigation bar.
-    int rightBarButtonItemCount = 0;
-    if ([self canCall]) {
-        rightBarButtonItemCount++;
+    if (self.userLeftGroup) {
+        self.navigationItem.rightBarButtonItems = @[];
+        return;
     }
-    if (self.disappearingMessagesConfiguration.isEnabled) {
-        rightBarButtonItemCount++;
-    }
-    CGFloat barButtonSize = 0;
-    switch (rightBarButtonItemCount) {
-        case 0:
-            barButtonSize = 70;
-            break;
-        case 1:
-            barButtonSize = 105;
-            break;
-        default:
-            OWSFail(@"%@ Unexpected number of right navbar items.", self.logTag);
-        // In production, fall through to the largest defined case.
-        case 2:
-            barButtonSize = 150;
-            break;
-    }
+    
     CGSize screenSize = [UIScreen mainScreen].bounds.size;
     CGFloat screenWidth = MIN(screenSize.width, screenSize.height);
     if (self.navigationItem.titleView != self.navigationBarTitleView) {
@@ -1235,61 +1210,16 @@ typedef enum : NSUInteger {
         // in the wrong position.
         [self.navigationBarTitleView layoutSubviews];
     }
-
-    if (self.userLeftGroup) {
-        self.navigationItem.rightBarButtonItems = @[];
-        return;
-    }
-
-    const CGFloat kBarButtonSize = 44;
+    
     NSMutableArray<UIBarButtonItem *> *barButtons = [NSMutableArray new];
+    
+    [barButtons addObject:[[UIBarButtonItem alloc] initWithImage: [UIImage imageNamed:@"button_settings_white"] style: UIBarButtonItemStylePlain target:self action: @selector(showConversationSettings)]];
+    
     if ([self canCall]) {
-        // We use UIButtons with [UIBarButtonItem initWithCustomView:...] instead of
-        // UIBarButtonItem in order to ensure that these buttons are spaced tightly.
-        // The contents of the navigation bar are cramped in this view.
-        UIButton *callButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        UIImage *image = [UIImage imageNamed:@"button_phone_white"];
-        [callButton setImage:image forState:UIControlStateNormal];
-        UIEdgeInsets imageEdgeInsets = UIEdgeInsetsZero;
-        // We normally would want to use left and right insets that ensure the button
-        // is square and the icon is centered.  However UINavigationBar doesn't offer us
-        // control over the margins and spacing of its content, and the buttons end up
-        // too far apart and too far from the edge of the screen. So we use a smaller
-        // right inset tighten up the layout.
-        imageEdgeInsets.left = round((kBarButtonSize - image.size.width) * 0.5f);
-        imageEdgeInsets.right = round((kBarButtonSize - (image.size.width + imageEdgeInsets.left)) * 0.5f);
-        imageEdgeInsets.top = round((kBarButtonSize - image.size.height) * 0.5f);
-        imageEdgeInsets.bottom = round(kBarButtonSize - (image.size.height + imageEdgeInsets.top));
-        callButton.imageEdgeInsets = imageEdgeInsets;
-        callButton.accessibilityLabel = NSLocalizedString(@"CALL_LABEL", "Accessibility label for placing call button");
-        [callButton addTarget:self action:@selector(callAction) forControlEvents:UIControlEventTouchUpInside];
-        callButton.frame = CGRectMake(0,
-            0,
-            round(image.size.width + imageEdgeInsets.left + imageEdgeInsets.right),
-            round(image.size.height + imageEdgeInsets.top + imageEdgeInsets.bottom));
-        [barButtons addObject:[[UIBarButtonItem alloc] initWithCustomView:callButton]];
+        [barButtons addObject:[[UIBarButtonItem alloc] initWithImage:[UIImage imageNamed:@"button_phone_white"] style:UIBarButtonItemStylePlain target:self action:@selector(callAction)]];
     }
 
-    if (self.disappearingMessagesConfiguration.isEnabled) {
-        DisappearingTimerConfigurationView *timerView = [[DisappearingTimerConfigurationView alloc]
-            initWithDurationSeconds:self.disappearingMessagesConfiguration.durationSeconds];
-        timerView.delegate = self;
-        timerView.tintColor = UIColor.whiteColor;
-
-        // As of iOS11, we can size barButton item custom views with autoLayout.
-        // Before that, though we can still use autoLayout *within* the customView,
-        // setting the view's size with constraints causes the customView to be temporarily
-        // laid out with a misplaced origin.
-        if (@available(iOS 11.0, *)) {
-            [timerView autoSetDimensionsToSize:CGSizeMake(36, 44)];
-        } else {
-            timerView.frame = CGRectMake(0, 0, 36, 44);
-        }
-
-        [barButtons addObject:[[UIBarButtonItem alloc] initWithCustomView:timerView]];
-    }
-
-    self.navigationItem.rightBarButtonItems = [barButtons copy];
+    self.navigationItem.rightBarButtonItems = barButtons;
 }
 
 - (void)updateNavigationBarSubtitleLabel
@@ -1334,22 +1264,11 @@ typedef enum : NSUInteger {
                                                NSFontAttributeName : [UIFont ows_regularFontWithSize:9.f],
                                                NSForegroundColorAttributeName : [UIColor colorWithWhite:0.9f alpha:1.f],
                                            }]];
-    } else {
-        [subtitleText appendAttributedString:
-                          [[NSAttributedString alloc]
-                              initWithString:NSLocalizedString(@"MESSAGES_VIEW_TITLE_SUBTITLE",
-                                                 @"The subtitle for the messages view title indicates that the "
-                                                 @"title can be tapped to access settings for this conversation.")
-                                  attributes:@{
-                                      NSFontAttributeName : [UIFont ows_regularFontWithSize:9.f],
-                                      NSForegroundColorAttributeName : [UIColor colorWithWhite:0.9f alpha:1.f],
-                                  }]];
     }
 
     self.navigationBarSubtitleLabel.attributedText = subtitleText;
     [self.navigationBarSubtitleLabel sizeToFit];
 }
-
 
 #pragma mark - Identity
 
@@ -1489,14 +1408,6 @@ typedef enum : NSUInteger {
     [settingsVC configureWithThread:self.thread uiDatabaseConnection:self.uiDatabaseConnection];
     settingsVC.showVerificationOnAppear = showVerification;
     [self.navigationController pushViewController:settingsVC animated:YES];
-}
-
-#pragma mark - DisappearingTimerConfigurationViewDelegate
-
-- (void)disappearingTimerConfigurationViewWasTapped:(DisappearingTimerConfigurationView *)disappearingTimerView
-{
-    DDLogDebug(@"%@ Tapped timer in navbar", self.logTag);
-    [self showConversationSettings];
 }
 
 #pragma mark - Load More
@@ -3675,15 +3586,6 @@ typedef enum : NSUInteger {
 - (NSArray<id<UIPreviewActionItem>> *)previewActionItems
 {
     return @[];
-}
-
-#pragma mark - Event Handling
-
-- (void)navigationTitleTapped:(UIGestureRecognizer *)gestureRecognizer
-{
-    if (gestureRecognizer.state == UIGestureRecognizerStateRecognized) {
-        [self showConversationSettings];
-    }
 }
 
 #ifdef USE_DEBUG_UI
